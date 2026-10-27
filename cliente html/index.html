@@ -1,37 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <title>Cliente Audio gRPC-Web</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transmisión de Audio con gRPC-Web</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; }
-        #log { border: 1px solid #ccc; padding: 10px; height: 150px; overflow-y: scroll; margin-top: 10px; }
-        .success { color: green; }
-        .error { color: red; }
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #log { background: #f0f0f0; border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: scroll; white-space: pre-wrap; font-family: monospace; font-size: 12px; }
+        #reproductor { display: none; margin-top: 15px; }
+        .controls { margin-bottom: 15px; }
     </style>
 </head>
 <body>
-    <h1>Transmisión de Audio con gRPC-Web </h1>
+    <h1>Transmisión de Audio con gRPC-Web</h1>
     <p>La conexión se intentará al servidor ubicado en localhost:8080</p>
-    <audio id="audio-player" controls style="display:none"></audio>
 
-    <div>
-        <label for="song-title">Título de la canción:</label>
-        <input id="song-title" type="text" placeholder="cancion1.mp3" value="cancion1.mp3" />
-
-        <label for="format-select">Formato:</label>
-        <select id="format-select">
+    <div class="controls">
+        <label for="tituloCancion">Título de la canción:</label>
+        <input type="text" id="tituloCancion" value="cancion1">
+        
+        <label for="formato">Formato:</label>
+        <select id="formato">
             <option value="mp3">mp3</option>
             <option value="wav">wav</option>
-            <option value="m4a">m4a</option>
+            <option value="ogg">ogg</option>
         </select>
+        
+        <button id="btnPedir">Pedir Canción</button>
     </div>
 
-    <button onclick="pedirCancion(document.getElementById('song-title').value || 'cancion1.mp3', document.getElementById('format-select').value || 'mp3')">Pedir Canción</button>
-   
-    <h3 id="status">Esperando petición...</h3>
+    <audio id="reproductor" controls></audio>
+
+    <h3>Esperando petición...</h3>
     <div id="log"></div>
-    <script src="./bundle.js"></script>
-    <script src="./funciones.js"></script>
-    
+
+    <!-- Cargar el bundle generado por webpack -->
+    <script src="bundle.js"></script>
 </body>
 </html>
