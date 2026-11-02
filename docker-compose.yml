@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # Servidor gRPC en Go
+  servidor-grpc:
+    build: ./servidor
+    container_name: servidor-grpc
+    #ports:
+    #  - "50051:50051"
+    volumes:
+      - ./servidor/canciones:/app/canciones # Mapea tu carpeta local a la del contenedor
+    networks:
+      - red-grpc
+
+  # Proxy Envoy
+  envoy:
+    image: envoyproxy/envoy:v1.28-latest
+    container_name: envoy-proxy
+    ports:
+      - "8080:8080" # Puerto que usa tu cliente web para conectarse
+    volumes:
+      # Montamos tu archivo de configuración dentro del contenedor
+      - ./envoyConfig2.yaml:/etc/envoy/envoy.yaml
+    command: [ "-c", "/etc/envoy/envoy.yaml", "--disable-hot-restart" ]
+    depends_on:
+      - servidor-grpc
+    networks:
+      - red-grpc
+
+networks:
+  red-grpc:
+    driver: bridge

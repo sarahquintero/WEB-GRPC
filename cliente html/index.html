@@ -1,40 +1,257 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transmisión de Audio con gRPC-Web</title>
+
+    <!-- Librerías para WebSocket y STOMP (desde CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+
+    <!-- Iconos FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        #log { background: #f0f0f0; border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: scroll; white-space: pre-wrap; font-family: monospace; font-size: 12px; }
-        #reproductor { display: none; margin-top: 15px; }
-        .controls { margin-bottom: 15px; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #log {
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 150px;
+            overflow-y: scroll;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+
+        #reproductor {
+            display: none;
+            margin-top: 15px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        /* Estilos para los iconos de reacción (de tu proyecto) */
+        #reacciones {
+            margin: 15px 0;
+            display: none;
+        }
+
+        .reaction {
+            font-size: 30px;
+            margin-right: 15px;
+            cursor: pointer;
+            color: #555;
+            transition: transform 0.2s;
+        }
+
+        .reaction:hover {
+            transform: scale(1.2);
+        }
+
+        .icon-like:hover {
+            color: #007bff;
+        }
+
+        .icon-heart:hover {
+            color: #dc3545;
+        }
+
+        .icon-sad:hover {
+            color: #ffc107;
+        }
+
+        .icon-fun:hover {
+            color: #28a745;
+        }
+
+        #chat {
+            background: #f9f9f9;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            max-width: 400px;
+            display: none;
+            margin-top: 15px;
+        }
+
+        #mensajes {
+            max-height: 100px;
+            overflow-y: auto;
+        }
     </style>
 </head>
+
 <body>
     <h1>Transmisión de Audio con gRPC-Web</h1>
     <p>La conexión se intentará al servidor ubicado en localhost:8080</p>
 
-    <div class="controls">
-        <label for="tituloCancion">Título de la canción:</label>
-        <input type="text" id="tituloCancion" value="cancion1">
-        
-        <label for="formato">Formato:</label>
-        <select id="formato">
-            <option value="mp3">mp3</option>
-            <option value="wav">wav</option>
-            <option value="ogg">ogg</option>
-        </select>
-        
-        <button id="btnPedir">Pedir Canción</button>
+    <div class="controls" style="flex-direction: column; align-items: flex-start; gap: 15px; margin-bottom: 20px;">
+        <!-- 1. Tipo de Audio -->
+        <div>
+            <label for="tipoAudio"><b>1. Tipo de Audio:</b></label>
+            <select id="tipoAudio">
+                <option value="">-- Seleccione un tipo --</option>
+                <option value="Musica">Música</option>
+                <option value="Podcast">Podcast</option>
+                <option value="Audiolibro">Audiolibro</option>
+                <option value="RuidoBlanco">Ruido Blanco</option>
+            </select>
+        </div>
+
+        <!-- 2. Lista de Audios -->
+        <div>
+            <label for="listaAudios"><b>2. Audio:</b></label>
+            <select id="listaAudios" disabled>
+                <option value="">-- Seleccione un tipo primero --</option>
+            </select>
+        </div>
+
+        <!-- 3. Detalles del Audio -->
+        <div id="detallesAudio"
+            style="display: none; background: #fff; border: 1px solid #ccc; padding: 10px; width: 100%; max-width: 400px; border-radius: 5px;">
+            <h4 style="margin-top: 0;">Detalles del Audio:</h4>
+            <ul id="listaDetalles" style="margin: 0; padding-left: 20px; font-size: 14px;"></ul>
+        </div>
+
+        <!-- 4. Botón de Reproducir -->
+        <div>
+            <button id="btnPedir" disabled>Pedir Canción y Reproducir</button>
+        </div>
     </div>
 
     <audio id="reproductor" controls></audio>
 
-    <h3>Esperando petición...</h3>
+    <!-- SECCIÓN DE REACCIONES (Reutilizada de tu proyecto) -->
+    <div id="reacciones">
+        <i class="fa-solid fa-thumbs-up reaction icon-like" data-reaction="like"
+            onclick="enviarReaccionServidor(event)"></i>
+        <i class="fa-solid fa-heart reaction icon-heart" data-reaction="heart"
+            onclick="enviarReaccionServidor(event)"></i>
+        <i class="fa-solid fa-face-sad-tear reaction icon-sad" data-reaction="sad"
+            onclick="enviarReaccionServidor(event)"></i>
+        <i class="fa-solid fa-face-laugh reaction icon-fun" data-reaction="fun"
+            onclick="enviarReaccionServidor(event)"></i>
+    </div>
+
+    <div id="chat">
+        <h3>Reacciones recibidas:</h3>
+        <div id="mensajes"></div>
+    </div>
+
+    <!-- SECCIÓN DE SUSCRIPCIÓN Y PAGOS -->
+    <div id="seccionPagos"
+        style="margin-top: 20px; padding: 15px; border: 1px solid #ccc; background: #fff; border-radius: 5px; max-width: 500px;">
+        <h3>3. Suscripción y Pagos</h3>
+
+        <div style="margin-bottom: 10px;">
+            <label for="planSelect"><b>Seleccione un plan:</b></label>
+            <select id="planSelect">
+                <option value="Básico">Plan Básico ($5/mes)</option>
+                <option value="Premium">Plan Premium ($10/mes)</option>
+                <option value="VIP">Plan VIP ($20/mes)</option>
+            </select>
+        </div>
+
+        <button id="btnPagar"
+            style="background-color: #28a745; color: white; padding: 8px 15px; border: none; border-radius: 3px; cursor: pointer;">
+            💳 Pagar Suscripción
+        </button>
+        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ccc;">
+            <p style="margin: 0 0 5px 0; font-size: 13px; color: #666;">Simulación de Token Repetido (Requerimiento e):
+            </p>
+            <input type="text" id="txtTokenUsado" readonly
+                style="width: 250px; padding: 5px; background: #eee; border: 1px solid #ccc;">
+            <button id="btnSimularToken"
+                style="background-color: #ffc107; color: black; padding: 8px 15px; border: none; border-radius: 3px; cursor: pointer; margin-left: 10px;">
+                🔄 Reutilizar Token
+            </button>
+        </div>
+    </div>
+
+    <!-- SECCIÓN DE HISTORIAL DE REPRODUCCIÓN -->
+    <div id="seccionHistorial"
+        style="margin-top: 20px; padding: 15px; border: 1px solid #ccc; background: #f9f9f9; border-radius: 5px; max-width: 500px;">
+        <h3>Historial de Reproducción</h3>
+        <ul id="listaHistorial" style="list-style-type: none; padding: 0; margin: 0;">
+            <!-- El JavaScript llenará esta lista -->
+        </ul>
+    </div>
+
+    <!-- SECCIÓN DE ADMINISTRADOR (Requerimiento f) -->
+    <div id="seccionAdmin"
+        style="margin-top: 20px; padding: 15px; border: 1px solid #ff9800; background: #fff3e0; border-radius: 5px; max-width: 500px;">
+        <h3>⚙️ Panel de Administrador</h3>
+
+        <div style="margin-bottom: 10px;">
+            <label><b>Subir nuevo Audio:</b></label><br>
+            <input type="file" id="inputArchivoAudio" accept="audio/*" style="margin-top: 5px;">
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            <label><b>Tipo de Audio:</b></label>
+            <select id="adminTipoAudio" style="width: 100%; padding: 5px;">
+                <option value="">-- Seleccione --</option>
+                <option value="Musica">Música</option>
+                <option value="Podcast">Podcast</option>
+                <option value="Audiolibro">Audiolibro</option>
+                <option value="RuidoBlanco">Ruido Blanco</option>
+            </select>
+        </div>
+
+        <!-- Contenedor dinámico para los metadatos -->
+        <div id="adminMetadatos"
+            style="margin-bottom: 10px; display: none; background: white; padding: 10px; border: 1px solid #ccc;">
+            <!-- Se llena con JS -->
+        </div>
+
+        <button id="btnSubirAdmin"
+            style="background-color: #ff9800; color: white; padding: 8px 15px; border: none; border-radius: 3px; cursor: pointer; width: 100%;">
+            ☁️ Registrar y Subir Audio
+        </button>
+    </div>
+
+    <h3>Logs de aplicación:</h3>
     <div id="log"></div>
 
     <!-- Cargar el bundle generado por webpack -->
     <script src="bundle.js"></script>
+
+    <!-- Script para manejar el botón y los logs -->
+    <script>
+        window.__writeAudioLog = function (mensaje, tipo) {
+            const logDiv = document.getElementById('log');
+            const ahora = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${ahora}] ${mensaje}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        };
+
+        document.getElementById('btnPedir').addEventListener('click', () => {
+            const titulo = document.getElementById('tituloCancion').value;
+            const formato = document.getElementById('formato').value;
+            window.__writeAudioLog(`Solicitud preparada: { titulo: "${titulo}", formato: "${formato}" }`);
+
+            if (window.iniciar_streaming_cancion) {
+                window.iniciar_streaming_cancion(titulo, formato);
+            } else {
+                window.__writeAudioLog("Error: La función iniciar_streaming_cancion no está cargada.", "error");
+            }
+        });
+    </script>
 </body>
+
 </html>
