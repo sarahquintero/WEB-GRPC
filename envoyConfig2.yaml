@@ -71,5 +71,5 @@ static_resources:
         - endpoint:
             address:
               socket_address:
-                address: 127.0.0.1
+                address: servidor-grpc # <-- POR ESTO
                 port_value: 50051 # Puerto de tu servidor gRPC
